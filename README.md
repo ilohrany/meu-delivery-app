@@ -4,6 +4,7 @@ App em Flutter/Dart. Inclui as tarefas:
 
 - **A01** — Abertura do app, navegação e menus por perfil
 - **A02** — Login e cadastro do cliente
+- **A03** — Lista de lojas com busca e categorias
 
 ## Como rodar
 
@@ -42,6 +43,19 @@ Rotas simuladas:
 | `/auth/login` | POST | valida e-mail/senha, devolve token |
 | `/auth/me` | GET | valida se o token ainda é válido |
 | `/auth/invalidar-tokens` | POST | derruba todas as sessões — útil pra testar o cenário de "token expirado" sem esperar de verdade |
+| `/lojas` | GET | lista de lojas; aceita `?busca=` e `?categoria=` |
+| `/categorias` | GET | categorias disponíveis para o filtro |
+| `/admin/lista-vazia` | POST | liga/desliga o retorno vazio — para demonstrar a tela de "nenhuma loja" |
+
+Para demonstrar os estados da tela de lojas:
+
+```bash
+# lista vazia (chame de novo para voltar ao normal)
+curl -X POST http://localhost:3000/admin/lista-vazia
+
+# falha de rede: simplesmente pare o mock server (Ctrl+C) e puxe
+# a lista para baixo no app
+```
 
 Para forçar o cenário de token expirado: com o app logado, rode
 `curl -X POST http://localhost:3000/auth/invalidar-tokens` e depois reabra
@@ -54,19 +68,24 @@ sozinho pra tela de login, sem travar.
 lib/
   main.dart                          # ponto de entrada
   config/app_config.dart             # endereço da API e rotas (único lugar)
+   models/loja.dart                   # a loja como vem da API
   services/
     token_storage.dart               # guarda/lê/apaga o token no aparelho
     auth_service.dart                # login, cadastro, validação de token
+    loja_service.dart                # busca lojas e categorias na API
   screens/
     splash_screen.dart               # tela de abertura + checa sessão salva
     error_screen.dart                # tela de erro + botão "tentar novamente"
     profile_select_screen.dart       # escolha entre Cliente / Entregador
     client/
       client_home_screen.dart        # menu do cliente + aba "Minha conta" com Sair
+      lojas_screen.dart              # lista de lojas, busca e filtro (aba "Lojas")
       auth/login_screen.dart         # tela de login
       auth/register_screen.dart      # tela de cadastro
     delivery/delivery_home_screen.dart # menu do entregador (sem login ainda)
-  widgets/placeholder_content.dart   # conteúdo genérico das abas sem regra de negócio
+  widgets/
+  placeholder_content.dart   # conteúdo genérico das abas sem regra de negócio
+   loja_card.dart                   # card da loja (aberta x fechada)
 mock_server.js                       # servidor de teste (health + auth)
 ```
 
@@ -92,6 +111,17 @@ mock_server.js                       # servidor de teste (health + auth)
 | 4 | Token enviado nas chamadas seguintes + app se mantém logado ao reabrir | `AuthService.tokenValido()` manda o header `Authorization: Bearer <token>` e é chamado pela splash a cada abertura do app |
 | 5 | Token expirado ou inválido devolve pra login, sem travar | Se `/auth/me` responde 401, `TokenStorage.limparToken()` é chamado e a splash manda pra `ProfileSelectScreen` |
 | 6 | Botão Sair apaga o token do aparelho | Aba "Minha conta" em `client_home_screen.dart` → `AuthService.sair()` |
+
+### A03 — Lista de lojas com busca e categorias
+
+| # | Critério | Onde |
+|---|----------|------|
+| 1 | Lista vem da API com foto, categoria, tempo e taxa | `services/loja_service.dart` + `models/loja.dart` + `widgets/loja_card.dart` |
+| 2 | Aberta e fechada são visualmente distintas, e a fechada não abre | `widgets/loja_card.dart`: card fechado fica com `Opacity(0.45)`, etiqueta "Fechada" e `onTap: null` |
+| 3 | A informação de aberta vem do servidor | `Loja.aberta` é lido direto do JSON. Não existe nenhum `DateTime.now()` decidindo isso no app |
+| 4 | Busca por nome filtra a lista | `lojas_screen.dart`: campo de busca manda `?busca=` para a API (com espera de 400ms para não chamar a cada letra) |
+| 5 | Filtro por categoria funciona e pode ser limpo | Chips de categoria; o chip "Todas" limpa o filtro, e a tela de vazio oferece "Limpar filtros" |
+| 6 | Lista vazia e falha de rede têm mensagens diferentes | `_MensagemTela` em `lojas_screen.dart`: ícone e texto distintos para cada caso, e só a falha de rede oferece "Tentar novamente" |
 
 ## Menus por perfil
 

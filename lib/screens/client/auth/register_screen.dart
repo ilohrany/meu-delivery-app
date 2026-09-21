@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../services/auth_service.dart';
 import '../client_home_screen.dart';
 
-/// Tela de cadastro do cliente. Cria o cliente pela API e já entra logado.
+
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 

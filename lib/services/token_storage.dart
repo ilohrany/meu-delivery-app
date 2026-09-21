@@ -1,7 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Guarda o token de autenticação no aparelho, para não precisar logar
-/// de novo toda vez que o app é reaberto.
+
 class TokenStorage {
   TokenStorage._();
 

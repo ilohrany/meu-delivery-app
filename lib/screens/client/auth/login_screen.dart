@@ -3,8 +3,7 @@ import '../../../services/auth_service.dart';
 import '../client_home_screen.dart';
 import 'register_screen.dart';
 
-/// Tela de login do cliente. Chama a API de autenticação (W01) e guarda
-/// o token no aparelho quando dá certo.
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
