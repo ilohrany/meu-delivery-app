@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/placeholder_content.dart';
 import '../profile_select_screen.dart';
+import 'lojas_screen.dart';
 
 
 class ClientHomeScreen extends StatefulWidget {
@@ -22,16 +23,38 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     Icons.person_outline,
   ];
 
+
+  Future<void> _sessaoExpirada() async {
+    await AuthService.sair();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Sua sessão expirou. Entre novamente.')),
+    );
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const ProfileSelectScreen()),
+      (route) => false,
+    );
+  }
+
+  Widget _corpoDaAba() {
+    switch (_indiceAtual) {
+      case 0:
+        return LojasScreen(onSessaoExpirada: _sessaoExpirada);
+      case 3:
+        return const _MinhaContaTab();
+      default:
+        return PlaceholderContent(
+          titulo: _titulos[_indiceAtual],
+          icone: _icones[_indiceAtual],
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(_titulos[_indiceAtual])),
-      body: _indiceAtual == 3
-          ? const _MinhaContaTab()
-          : PlaceholderContent(
-              titulo: _titulos[_indiceAtual],
-              icone: _icones[_indiceAtual],
-            ),
+      body: _corpoDaAba(),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _indiceAtual,
         onDestinationSelected: (i) => setState(() => _indiceAtual = i),
@@ -47,8 +70,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   }
 }
 
-/// Aba "Minha conta": por enquanto só tem o botão de sair, que apaga o
-/// token do aparelho (critério de aceite da tarefa A02).
+
 class _MinhaContaTab extends StatelessWidget {
   const _MinhaContaTab();
 
