@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/loja.dart';
 import '../../services/loja_service.dart';
 import '../../widgets/loja_card.dart';
+import 'cardapio_screen.dart';
 
 
 class LojasScreen extends StatefulWidget {
@@ -211,11 +212,12 @@ class _LojasScreenState extends State<LojasScreen> {
           return LojaCard(
             loja: loja,
             onTap: () {
-             
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Abrir ${loja.nome} (próxima tarefa)')),
-              );
-            },
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => CardapioScreen(loja: loja),
+    ),
+  );
+},
           );
         },
       ),

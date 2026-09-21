@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/loja.dart';
 import 'token_storage.dart';
+import '../models/cardapio.dart';
 
 
 class LojaException implements Exception {
@@ -90,5 +91,41 @@ class LojaService {
     } catch (_) {
       return [];
     }
+  }
+ 
+  static Future<List<Categoria>> getCardapio(String lojaId) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}${AppConfig.cardapioPath(lojaId)}',
+    );
+
+    http.Response resposta;
+    try {
+      resposta = await http
+          .get(uri, headers: await _cabecalhos())
+          .timeout(AppConfig.apiTimeout);
+    } catch (_) {
+      throw LojaException(
+        'Não foi possível carregar o cardápio. Verifique sua conexão.',
+      );
+    }
+
+    if (resposta.statusCode == 401) {
+      await TokenStorage.limparToken();
+      throw LojaException('Sua sessão expirou.', tokenInvalido: true);
+    }
+
+    if (resposta.statusCode == 404) {
+      throw LojaException('Cardápio não encontrado para esta loja.');
+    }
+
+    if (resposta.statusCode != 200) {
+      throw LojaException('Não foi possível carregar o cardápio.');
+    }
+
+    final corpo = jsonDecode(resposta.body);
+    final lista = corpo is List ? corpo : (corpo['categorias'] as List? ?? []);
+    return lista
+        .map((e) => Categoria.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 }

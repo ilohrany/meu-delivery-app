@@ -16,7 +16,8 @@ class AppConfig {
   static const String authRegisterPath = '/auth/cadastro';
   static const String authMePath = '/auth/me';
 
-   static const String lojasPath = '/lojas';
+  static String cardapioPath(String lojaId) => '/lojas/$lojaId/cardapio';
+  static const String lojasPath = '/lojas';
   static const String categoriasPath = '/categorias';
 
   static const Duration apiTimeout = Duration(seconds: 5);

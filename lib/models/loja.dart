@@ -1,6 +1,6 @@
 
 class Loja {
-  final int id;
+  final String id;
   final String nome;
   final String categoria;
   final String? fotoUrl;
@@ -20,7 +20,7 @@ class Loja {
 
   factory Loja.fromJson(Map<String, dynamic> json) {
     return Loja(
-      id: json['id'] as int,
+      id: (json['id'] ?? '').toString(),
       nome: json['nome'] as String? ?? 'Sem nome',
       categoria: json['categoria'] as String? ?? 'Outros',
       fotoUrl: json['fotoUrl'] as String?,
