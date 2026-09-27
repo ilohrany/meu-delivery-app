@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../models/loja.dart';
 import '../../models/cardapio.dart';
+import '../../models/carrinho.dart';
 import '../../services/loja_service.dart';
+import '../../services/carrinho_service.dart';
 import 'produto_detail_modal.dart';
+import 'carrinho_screen.dart';
 
 class CardapioScreen extends StatefulWidget {
   final Loja loja;
@@ -18,10 +21,30 @@ class _CardapioScreenState extends State<CardapioScreen> {
   bool _carregando = true;
   String? _erro;
 
+  Carrinho? _carrinho;
+
   @override
   void initState() {
     super.initState();
     _carregarCardapio();
+    _carregarCarrinho();
+  }
+
+  Future<void> _carregarCarrinho() async {
+    try {
+      final carrinho = await CarrinhoService.buscarCarrinho();
+      if (!mounted) return;
+      setState(() => _carrinho = carrinho);
+    } on CarrinhoException {
+      // Silencioso: a barra de resumo simplesmente não aparece.
+    }
+  }
+
+  Future<void> _abrirCarrinho() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const CarrinhoScreen()),
+    );
+    _carregarCarrinho();
   }
 
   Future<void> _carregarCardapio() async {
@@ -52,25 +75,101 @@ class _CardapioScreenState extends State<CardapioScreen> {
     }
   }
 
-  void _abrirProduto(Produto produto) {
-    showModalBottomSheet(
+  Future<void> _abrirProduto(Produto produto) async {
+    final adicionado = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => ProdutoDetailModal(produto: produto),
+      builder: (_) => ProdutoDetailModal(
+        produto: produto,
+        lojaId: widget.loja.id,
+      ),
     );
+    if (adicionado == true) _carregarCarrinho();
   }
 
   @override
   Widget build(BuildContext context) {
+    final qtdCarrinho = _carrinho?.quantidadeTotal ?? 0;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.loja.nome),
         centerTitle: false,
+        actions: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.shopping_cart_outlined),
+                onPressed: _abrirCarrinho,
+              ),
+              if (qtdCarrinho > 0)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      '$qtdCarrinho',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 10),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: _buildBody(),
+      bottomNavigationBar: _barraCarrinho(),
+    );
+  }
+
+  Widget? _barraCarrinho() {
+    final carrinho = _carrinho;
+    if (carrinho == null || carrinho.estaVazio) return null;
+    // Só mostra a barra rápida quando o carrinho é desta loja.
+    if (carrinho.lojaId != widget.loja.id) return null;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: Material(
+          color: Theme.of(context).colorScheme.primary,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: _abrirCarrinho,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Text(
+                    '${carrinho.quantidadeTotal} ${carrinho.quantidadeTotal == 1 ? 'item' : 'itens'}',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  const Text('Ver carrinho', style: TextStyle(color: Colors.white)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'R\$ ${carrinho.total.toStringAsFixed(2).replaceAll('.', ',')}',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

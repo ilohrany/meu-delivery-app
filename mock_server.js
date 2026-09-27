@@ -11,6 +11,19 @@
 //   GET  /categorias
 //   GET  /lojas/:id/cardapio
 //   POST /admin/lista-vazia      (liga/desliga lista vazia)
+//
+//   -- Endereços (autenticado) --
+//   GET    /enderecos
+//   POST   /enderecos            { rua, numero, complemento, bairro, cidade, pontoReferencia, favorito }
+//   PUT    /enderecos/:id
+//   DELETE /enderecos/:id
+//   POST   /enderecos/:id/favorito
+//
+//   -- Carrinho (autenticado, de uma loja por vez) --
+//   GET    /carrinho
+//   POST   /carrinho/itens       { lojaId, produtoId, quantidade, complementos, observacao, substituir }
+//   PUT    /carrinho/itens/:id   { quantidade?, complementos?, observacao? }
+//   DELETE /carrinho/itens/:id
 
 const http = require('http');
 const { URL } = require('url');
@@ -248,6 +261,106 @@ const mockCardapios = {
   ],
 };
 
+// --- Endereços e Carrinho: dados por usuário (por e-mail da sessão) ---
+const enderecosPorUsuario = new Map(); // email -> [endereco]
+const carrinhosPorUsuario = new Map(); // email -> { lojaId, lojaNome, itens: [] }
+
+let proximoEnderecoId = 1;
+let proximoItemCarrinhoId = 1;
+
+function round2(n) {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+function autenticarEmail(req) {
+  const auth = req.headers['authorization'] || '';
+  const token = auth.replace('Bearer ', '').trim();
+  return sessoes.get(token) || null;
+}
+
+function enderecosDoUsuario(email) {
+  if (!enderecosPorUsuario.has(email)) enderecosPorUsuario.set(email, []);
+  return enderecosPorUsuario.get(email);
+}
+
+function carrinhoDoUsuario(email) {
+  if (!carrinhosPorUsuario.has(email)) {
+    carrinhosPorUsuario.set(email, { lojaId: null, lojaNome: null, itens: [] });
+  }
+  return carrinhosPorUsuario.get(email);
+}
+
+function encontrarProduto(lojaId, produtoId) {
+  const categorias = mockCardapios[lojaId] || [];
+  for (const cat of categorias) {
+    const produto = cat.produtos.find((p) => p.id === produtoId);
+    if (produto) return produto;
+  }
+  return null;
+}
+
+// Confere as opções escolhidas contra o cardápio de verdade (nunca confia
+// só no que o app mandou) e valida min/max de cada grupo.
+function resolverComplementos(produto, complementosBrutos) {
+  const escolhidos = Array.isArray(complementosBrutos) ? complementosBrutos : [];
+  const porGrupo = new Map();
+
+  for (const escolha of escolhidos) {
+    const grupo = produto.gruposComplemento.find((g) => g.id === escolha.grupoId);
+    if (!grupo) throw new Error('Grupo de complemento inválido.');
+    const opcao = grupo.opcoes.find((o) => o.id === escolha.opcaoId);
+    if (!opcao) throw new Error('Opção de complemento inválida.');
+
+    if (!porGrupo.has(grupo.id)) porGrupo.set(grupo.id, []);
+    porGrupo.get(grupo.id).push({
+      grupoId: grupo.id,
+      opcaoId: opcao.id,
+      nome: opcao.nome,
+      preco: opcao.preco,
+    });
+  }
+
+  for (const grupo of produto.gruposComplemento) {
+    const qtd = (porGrupo.get(grupo.id) || []).length;
+    if (qtd < grupo.minQtd || qtd > grupo.maxQtd) {
+      throw new Error(
+        `O grupo "${grupo.titulo}" precisa de ${grupo.minQtd} a ${grupo.maxQtd} opção(ões).`,
+      );
+    }
+  }
+
+  return [...porGrupo.values()].flat();
+}
+
+function calcularPrecoItem(produto, complementos, quantidade) {
+  const totalComplementos = complementos.reduce((soma, c) => soma + c.preco, 0);
+  return round2((produto.precoBase + totalComplementos) * quantidade);
+}
+
+function serializarCarrinho(carrinho) {
+  const subtotal = carrinho.itens.reduce((soma, i) => soma + i.precoItem, 0);
+  const loja = carrinho.lojaId
+    ? mockLojas.find((l) => l.id === carrinho.lojaId)
+    : null;
+  const taxaEntrega = carrinho.itens.length && loja ? loja.taxaEntrega : 0;
+
+  return {
+    lojaId: carrinho.lojaId,
+    lojaNome: carrinho.lojaNome,
+    itens: carrinho.itens.map((i) => ({
+      id: i.id,
+      produto: i.produto,
+      quantidade: i.quantidade,
+      observacao: i.observacao,
+      complementos: i.complementos,
+      precoItem: round2(i.precoItem),
+    })),
+    subtotal: round2(subtotal),
+    taxaEntrega: round2(taxaEntrega),
+    total: round2(subtotal + taxaEntrega),
+  };
+}
+
 function gerarToken(email) {
   return `fake-jwt-${email}-${Date.now()}`;
 }
@@ -382,6 +495,240 @@ const server = http.createServer(async (req, res) => {
           ? 'Lista de lojas agora retorna vazia'
           : 'Lista de lojas voltou ao normal',
       });
+    }
+
+    // --- Endereços ---
+    if (pathname === '/enderecos' && req.method === 'GET') {
+      const email = autenticarEmail(req);
+      if (!email) return enviarJson(res, 401, { error: 'Token inválido ou expirado.' });
+      return enviarJson(res, 200, enderecosDoUsuario(email));
+    }
+
+    if (pathname === '/enderecos' && req.method === 'POST') {
+      const email = autenticarEmail(req);
+      if (!email) return enviarJson(res, 401, { error: 'Token inválido ou expirado.' });
+
+      const corpo = await lerCorpo(req);
+      const { rua, numero, complemento, bairro, cidade, pontoReferencia, favorito } = corpo;
+      if (!rua || !numero || !bairro || !cidade) {
+        return enviarJson(res, 400, {
+          error: 'Preencha rua, número, bairro e cidade.',
+        });
+      }
+
+      const lista = enderecosDoUsuario(email);
+      const ehPrimeiro = lista.length === 0;
+      const novoFavorito = ehPrimeiro || Boolean(favorito);
+
+      if (novoFavorito) {
+        lista.forEach((e) => (e.favorito = false));
+      }
+
+      const novo = {
+        id: String(proximoEnderecoId++),
+        rua,
+        numero,
+        complemento: complemento || '',
+        bairro,
+        cidade,
+        pontoReferencia: pontoReferencia || '',
+        favorito: novoFavorito,
+      };
+      lista.push(novo);
+      return enviarJson(res, 201, novo);
+    }
+
+    const enderecoFavoritoMatch = pathname.match(/^\/enderecos\/([^/]+)\/favorito$/);
+    if (enderecoFavoritoMatch && req.method === 'POST') {
+      const email = autenticarEmail(req);
+      if (!email) return enviarJson(res, 401, { error: 'Token inválido ou expirado.' });
+
+      const id = enderecoFavoritoMatch[1];
+      const lista = enderecosDoUsuario(email);
+      const alvo = lista.find((e) => e.id === id);
+      if (!alvo) return enviarJson(res, 404, { error: 'Endereço não encontrado.' });
+
+      lista.forEach((e) => (e.favorito = e.id === id));
+      return enviarJson(res, 200, lista);
+    }
+
+    const enderecoMatch = pathname.match(/^\/enderecos\/([^/]+)$/);
+    if (enderecoMatch && req.method === 'PUT') {
+      const email = autenticarEmail(req);
+      if (!email) return enviarJson(res, 401, { error: 'Token inválido ou expirado.' });
+
+      const id = enderecoMatch[1];
+      const lista = enderecosDoUsuario(email);
+      const alvo = lista.find((e) => e.id === id);
+      if (!alvo) return enviarJson(res, 404, { error: 'Endereço não encontrado.' });
+
+      const corpo = await lerCorpo(req);
+      const { rua, numero, complemento, bairro, cidade, pontoReferencia, favorito } = corpo;
+      if (!rua || !numero || !bairro || !cidade) {
+        return enviarJson(res, 400, {
+          error: 'Preencha rua, número, bairro e cidade.',
+        });
+      }
+
+      alvo.rua = rua;
+      alvo.numero = numero;
+      alvo.complemento = complemento || '';
+      alvo.bairro = bairro;
+      alvo.cidade = cidade;
+      alvo.pontoReferencia = pontoReferencia || '';
+
+      if (favorito) {
+        lista.forEach((e) => (e.favorito = e.id === id));
+      }
+
+      return enviarJson(res, 200, alvo);
+    }
+
+    if (enderecoMatch && req.method === 'DELETE') {
+      const email = autenticarEmail(req);
+      if (!email) return enviarJson(res, 401, { error: 'Token inválido ou expirado.' });
+
+      const id = enderecoMatch[1];
+      const lista = enderecosDoUsuario(email);
+      const indice = lista.findIndex((e) => e.id === id);
+      if (indice === -1) return enviarJson(res, 404, { error: 'Endereço não encontrado.' });
+
+      const [removido] = lista.splice(indice, 1);
+      if (removido.favorito && lista.length > 0) {
+        lista[0].favorito = true;
+      }
+
+      return enviarJson(res, 200, { status: 'removido' });
+    }
+
+    // --- Carrinho ---
+    if (pathname === '/carrinho' && req.method === 'GET') {
+      const email = autenticarEmail(req);
+      if (!email) return enviarJson(res, 401, { error: 'Token inválido ou expirado.' });
+      return enviarJson(res, 200, serializarCarrinho(carrinhoDoUsuario(email)));
+    }
+
+    if (pathname === '/carrinho/itens' && req.method === 'POST') {
+      const email = autenticarEmail(req);
+      if (!email) return enviarJson(res, 401, { error: 'Token inválido ou expirado.' });
+
+      const corpo = await lerCorpo(req);
+      const { lojaId, produtoId, quantidade, complementos, observacao, substituir } = corpo;
+
+      if (!lojaId || !produtoId) {
+        return enviarJson(res, 400, { error: 'Loja e produto são obrigatórios.' });
+      }
+
+      const loja = mockLojas.find((l) => l.id === String(lojaId));
+      if (!loja) return enviarJson(res, 404, { error: 'Loja não encontrada.' });
+
+      const produto = encontrarProduto(String(lojaId), produtoId);
+      if (!produto) return enviarJson(res, 404, { error: 'Produto não encontrado.' });
+      if (produto.disponivel === false) {
+        return enviarJson(res, 400, { error: 'Este produto está indisponível.' });
+      }
+
+      const carrinho = carrinhoDoUsuario(email);
+
+      if (
+        carrinho.itens.length > 0 &&
+        carrinho.lojaId !== String(lojaId) &&
+        !substituir
+      ) {
+        return enviarJson(res, 409, {
+          error: 'Seu carrinho tem itens de outra loja.',
+          lojaAtualId: carrinho.lojaId,
+          lojaAtualNome: carrinho.lojaNome,
+        });
+      }
+
+      if (carrinho.lojaId !== String(lojaId)) {
+        // Loja nova (carrinho estava vazio, ou o cliente confirmou a troca).
+        carrinho.itens = [];
+        carrinho.lojaId = String(lojaId);
+        carrinho.lojaNome = loja.nome;
+      }
+
+      let complementosResolvidos;
+      try {
+        complementosResolvidos = resolverComplementos(produto, complementos);
+      } catch (e) {
+        return enviarJson(res, 400, { error: e.message });
+      }
+
+      const qtd = Number.isFinite(Number(quantidade)) && Number(quantidade) > 0
+        ? Math.floor(Number(quantidade))
+        : 1;
+
+      const item = {
+        id: String(proximoItemCarrinhoId++),
+        produto,
+        quantidade: qtd,
+        observacao: typeof observacao === 'string' ? observacao : '',
+        complementos: complementosResolvidos,
+        precoItem: calcularPrecoItem(produto, complementosResolvidos, qtd),
+      };
+
+      carrinho.itens.push(item);
+      return enviarJson(res, 201, serializarCarrinho(carrinho));
+    }
+
+    const itemCarrinhoMatch = pathname.match(/^\/carrinho\/itens\/([^/]+)$/);
+    if (itemCarrinhoMatch && req.method === 'PUT') {
+      const email = autenticarEmail(req);
+      if (!email) return enviarJson(res, 401, { error: 'Token inválido ou expirado.' });
+
+      const id = itemCarrinhoMatch[1];
+      const carrinho = carrinhoDoUsuario(email);
+      const item = carrinho.itens.find((i) => i.id === id);
+      if (!item) return enviarJson(res, 404, { error: 'Item não encontrado no carrinho.' });
+
+      const corpo = await lerCorpo(req);
+      const { quantidade, complementos, observacao } = corpo;
+
+      if (complementos !== undefined) {
+        try {
+          item.complementos = resolverComplementos(item.produto, complementos);
+        } catch (e) {
+          return enviarJson(res, 400, { error: e.message });
+        }
+      }
+
+      if (quantidade !== undefined) {
+        const qtd = Number(quantidade);
+        if (!Number.isFinite(qtd) || qtd < 1) {
+          return enviarJson(res, 400, { error: 'Quantidade inválida.' });
+        }
+        item.quantidade = Math.floor(qtd);
+      }
+
+      if (observacao !== undefined) {
+        item.observacao = typeof observacao === 'string' ? observacao : '';
+      }
+
+      item.precoItem = calcularPrecoItem(item.produto, item.complementos, item.quantidade);
+
+      return enviarJson(res, 200, serializarCarrinho(carrinho));
+    }
+
+    if (itemCarrinhoMatch && req.method === 'DELETE') {
+      const email = autenticarEmail(req);
+      if (!email) return enviarJson(res, 401, { error: 'Token inválido ou expirado.' });
+
+      const id = itemCarrinhoMatch[1];
+      const carrinho = carrinhoDoUsuario(email);
+      const indice = carrinho.itens.findIndex((i) => i.id === id);
+      if (indice === -1) {
+        return enviarJson(res, 404, { error: 'Item não encontrado no carrinho.' });
+      }
+
+      carrinho.itens.splice(indice, 1);
+      if (carrinho.itens.length === 0) {
+        carrinho.lojaId = null;
+        carrinho.lojaNome = null;
+      }
+
+      return enviarJson(res, 200, serializarCarrinho(carrinho));
     }
 
     enviarJson(res, 404, { error: 'não encontrado' });

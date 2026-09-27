@@ -3,6 +3,7 @@ import '../../services/auth_service.dart';
 import '../../widgets/placeholder_content.dart';
 import '../profile_select_screen.dart';
 import 'lojas_screen.dart';
+import 'enderecos_screen.dart';
 
 
 class ClientHomeScreen extends StatefulWidget {
@@ -40,6 +41,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     switch (_indiceAtual) {
       case 0:
         return LojasScreen(onSessaoExpirada: _sessaoExpirada);
+      case 2:
+        return EnderecosScreen(onSessaoExpirada: _sessaoExpirada);
       case 3:
         return const _MinhaContaTab();
       default:
