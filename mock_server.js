@@ -49,7 +49,7 @@ const mockLojas = [
     id: '2',
     nome: 'Pizza Express',
     categoria: 'Pizzas',
-    fotoUrl: 'https://picsum.photos/seed/pizza/150',
+    fotoUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800',
     tempoEstimadoMin: 45,
     taxaEntrega: 7.5,
     aberta: true,
@@ -58,7 +58,7 @@ const mockLojas = [
     id: '3',
     nome: 'Sushi House',
     categoria: 'Japonesa',
-    fotoUrl: 'https://picsum.photos/seed/sushi/150',
+    fotoUrl: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=800',
     tempoEstimadoMin: 50,
     taxaEntrega: 9.0,
     aberta: false,
@@ -67,7 +67,7 @@ const mockLojas = [
     id: '4',
     nome: 'Açaí do Parque',
     categoria: 'Açaí',
-    fotoUrl: 'https://picsum.photos/seed/acai/150',
+    fotoUrl: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=800',
     tempoEstimadoMin: 25,
     taxaEntrega: 0,
     aberta: true,
@@ -181,7 +181,7 @@ const mockCardapios = {
           nome: 'Margherita',
           descricao: 'Molho de tomate, mussarela e manjericão.',
           precoBase: 39.9,
-          fotoUrl: 'https://picsum.photos/seed/marg/150',
+          fotoUrl: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=500',
           disponivel: true,
           gruposComplemento: [
             {
@@ -211,7 +211,7 @@ const mockCardapios = {
           nome: 'Calabresa',
           descricao: 'Calabresa fatiada, cebola e orégano.',
           precoBase: 42.0,
-          fotoUrl: null,
+          fotoUrl: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=500',
           disponivel: true,
           gruposComplemento: [
             {
