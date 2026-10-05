@@ -40,7 +40,7 @@ const mockLojas = [
     id: '1',
     nome: 'Burguer King da Praça',
     categoria: 'Hambúrgueres',
-    fotoUrl: 'https://picsum.photos/seed/bk/150',
+    fotoUrl: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500',
     tempoEstimadoMin: 35,
     taxaEntrega: 5.9,
     aberta: true,
@@ -86,7 +86,7 @@ const mockCardapios = {
           descricao:
             'Pão brioche, carne 180g, queijo cheddar e molho especial.',
           precoBase: 25.0,
-          fotoUrl: 'https://picsum.photos/seed/xb/150',
+          fotoUrl: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500',
           disponivel: true,
           gruposComplemento: [
             {
@@ -126,7 +126,7 @@ const mockCardapios = {
           nome: 'Duplo Cheddar Bacon',
           descricao: 'Dois burgers, cheddar, bacon crocante e molho da casa.',
           precoBase: 32.9,
-          fotoUrl: 'https://picsum.photos/seed/duplo/150',
+          fotoUrl: 'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?w=500',
           disponivel: true,
           gruposComplemento: [
             {
@@ -152,7 +152,7 @@ const mockCardapios = {
           nome: 'Refrigerante Lata 350ml',
           descricao: 'Coca-Cola ou Guaraná Antarctica.',
           precoBase: 6.0,
-          fotoUrl: null,
+          fotoUrl: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500',
           disponivel: true,
           gruposComplemento: [
             {

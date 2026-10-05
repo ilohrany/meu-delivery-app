@@ -70,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     size: 72, color: Colors.deepOrange),
                 const SizedBox(height: 8),
                 const Text(
-                  'Quero Delivery',
+                  'Meu Delivery',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),

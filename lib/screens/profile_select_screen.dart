@@ -9,7 +9,7 @@ class ProfileSelectScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Quero Delivery')),
+      appBar: AppBar(title: const Text('Meu Delivery')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
